@@ -198,17 +198,17 @@ const allEmps = ref<EmpFullInfo[]>([])
 const selectedEmpId = ref(0)
 const assignKeyword = ref('')
 
-// function openAssignDialog(w: WorkPlanItem) {
-//   assignWorkId.value = w.id
-//   assignOpen.value = true
-//   selectedEmpId.value = 0
-//   assignKeyword.value = ''
-//   fetch(`/api/workLoad/empListByProject/${props.pid}`)
-//     .then((r) => r.json())
-//     .then((res) => {
-//       if (res.code === 200) allEmps.value = res.result
-//     })
-// }
+function openAssignDialog(w: WorkPlanItem) {
+  assignWorkId.value = w.id
+  assignOpen.value = true
+  selectedEmpId.value = 0
+  assignKeyword.value = ''
+  fetch(`/api/workLoad/empListByProject/${props.pid}`)
+    .then((r) => r.json())
+    .then((res) => {
+      if (res.code === 200) allEmps.value = res.result
+    })
+}
 
 async function confirmAssign() {
   if (!selectedEmpId.value) {
@@ -432,17 +432,8 @@ const WEEKDAY_MAP: Record<number, string> = {
         <div v-if="e.checker_name">检查人：{{ e.checker_name }}</div>
       </div>
       <div v-if="canMarketOrAssign" class="flex gap-2 mt-3">
-        <a-button
-          type="primary"
-          size="small"
-          @click="
-            putToMarket()
-            detailOpen = false
-          "
-          >放入市场</a-button
-        >
-        >
-        <a-button size="small">指派</a-button>
+        <a-button type="primary" size="small" @click="putToMarket(); detailOpen = false">放入市场</a-button>
+        <a-button size="small" @click="openAssignDialog(detailWork); detailOpen = false">指派</a-button>
       </div>
     </div>
   </a-modal>
