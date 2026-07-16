@@ -40,7 +40,7 @@ function generateQRCodes() {
   const size = qrSize.value * 3
   const base = window.location.origin
   for (const d of props.items) {
-    const url = `${base}/#/mobile/scan-work?group_key=${d.group_key}`
+    const url = `${base}${import.meta.env.BASE_URL}#/mobile/scan-work?group_key=${d.group_key}`
     const qr = `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(url)}&margin=2`
     list.push({ url: qr, name: d.name })
   }

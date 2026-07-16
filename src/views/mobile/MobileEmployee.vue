@@ -53,6 +53,7 @@ async function fetchGrabList() {
         > = {}
         if (planRes.code === 200) for (const p of planRes.result) planMap[p.id] = p
         grabList.value = arrRes.result
+          .sort((a: { release_time: string | null }, b: { release_time: string | null }) => (a.release_time || '').localeCompare(b.release_time || ''))
           .filter(
             (a: { status: number; ordertaker_id: number | null; work_id: number }) =>
               a.status === 0 && !a.ordertaker_id && !myWorkIds.has(a.work_id),
@@ -633,7 +634,7 @@ function getWeekRange(weekNum: number): string {
                 {{ w.position_name }}<template v-if="w.project_name"> · {{ w.project_name }}</template>
               </div>
               <div class="mt-2 flex gap-2 text-sm flex-wrap">
-                <a-tag :color="w.source === 'grabbed' ? 'blue' : undefined">{{ WORK_CYCLE_LABEL[w.work_cycle] || '—' }}</a-tag>
+                <a-tag :color="w.source === 'grabbed' ? 'blue' : undefined">{{ WORK_CYCLE_LABEL[w.work_cycle] || '—' }}<template v-if="w.work_cycle === 2 && w.exec_time"> · {{ w.exec_time }}日</template></a-tag>
                 <span>¥{{ w.price }} / {{ w.unit }}×{{ w.number }}</span>
               </div>
               <div class="text-xs text-gray-400 mt-1">
