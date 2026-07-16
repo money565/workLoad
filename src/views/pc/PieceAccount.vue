@@ -32,10 +32,15 @@ async function fetchData() {
   try {
     const y = selectedMonth.value.year()
     const m = selectedMonth.value.month() + 1
-    const res = await fetch(`/api/workLoad/pieceAccount/${appCache.currentProject}/${y}/${m}`).then(r => r.json())
+    const res = await fetch(`/api/workLoad/pieceAccount/${appCache.currentProject}/${y}/${m}`).then(
+      (r) => r.json(),
+    )
     if (res.code === 200) dataSource.value = res.result
-  } catch { console.warn('获取失败') }
-  finally { loading.value = false }
+  } catch {
+    console.warn('获取失败')
+  } finally {
+    loading.value = false
+  }
 }
 
 watch(() => appCache.currentProject, fetchData, { immediate: true })
@@ -44,9 +49,19 @@ watch(selectedMonth, fetchData)
 
 <template>
   <div class="flex flex-col h-full">
-    <a-page-header class="shrink-0" title="计件核算" :sub-title="appCache.currentProjectName" @back="() => $router.back()">
+    <a-page-header
+      class="shrink-0"
+      title="计件核算"
+      :sub-title="appCache.currentProjectName"
+      @back="() => $router.back()"
+    >
       <template #extra>
-        <a-date-picker v-model:value="selectedMonth" picker="month" format="YYYY年M月" class="w-36" />
+        <a-date-picker
+          v-model:value="selectedMonth"
+          picker="month"
+          format="YYYY年M月"
+          class="w-36"
+        />
       </template>
     </a-page-header>
     <a-card class="flex-1 overflow-hidden flex flex-col">

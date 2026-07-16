@@ -97,7 +97,7 @@ const menuItems = [
     ],
   },
   { key: 'user-manage', icon: () => h(CrownOutlined), label: '用户管理' },
-  { key: 'debug-data', icon: () => h(SettingOutlined), label: '数据查看' },
+  ...(import.meta.env.DEV ? [{ key: 'debug-data' as const, icon: () => h(SettingOutlined), label: '数据查看' }] : []),
   { key: 'settings', icon: () => h(SettingOutlined), label: '设置' },
   { key: 'todo', icon: () => h(BellOutlined), label: '待办事项' },
 ]

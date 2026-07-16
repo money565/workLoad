@@ -252,7 +252,7 @@ function loadEditForm(r: WorkPlanItem) {
     start_time: r.start_time ? dayjs(r.start_time, 'HH:mm') : undefined,
     end_time: r.end_time ? dayjs(r.end_time, 'HH:mm') : undefined,
     work_cycle: r.work_cycle,
-    exec_time: r.exec_time,
+    exec_time: r.work_cycle === 0 ? -1 : (Array.isArray(r.exec_time) ? r.exec_time[0] : r.exec_time),
     status: r.status,
   })
   timeList.value = []
@@ -286,10 +286,10 @@ async function handleSubmit() {
     }
     const basePayload = {
       work_name: form.work_name,
-      price: form.price,
-      salary: form.salary,
+      price: Number(form.price),
+      salary: Number(form.salary),
       unit: form.unit,
-      number: form.number,
+      number: Number(form.number),
       work_cycle: form.work_cycle,
       status: form.status,
       start_time: toTimeStr(form.start_time),
@@ -329,8 +329,9 @@ async function handleSubmit() {
     }
     modalOpen.value = false
     fetchData()
-  } catch {
-    console.warn('保存失败')
+  } catch (e) {
+    console.error('保存失败', e)
+    message.error('保存失败')
   } finally {
     submitting.value = false
   }

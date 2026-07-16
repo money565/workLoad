@@ -865,11 +865,7 @@ const WEEKDAYS = ['', '星期一', '星期二', '星期三', '星期四', '星�
           title="工作照片"
           :footer="null"
           width="90%"
-          @cancel="
-            previewOpen = false
-            uploadImage = ''
-            uploadKey = ''
-          "
+          @cancel="previewOpen = false; uploadImage = ''; uploadKey = ''"
         >
           <img :src="uploadImage" class="w-full rounded mb-4" />
           <a-button type="primary" block size="large" :loading="submitting" @click="submitExecution"

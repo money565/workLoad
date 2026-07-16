@@ -1,7 +1,14 @@
 <script setup lang="ts">
 import { message } from 'ant-design-vue'
+import dayjs from 'dayjs'
 import { useUserStore } from '@/stores/counter'
-import { HomeOutlined, UserOutlined, CalendarOutlined, SoundOutlined, LoadingOutlined } from '@ant-design/icons-vue'
+import {
+  HomeOutlined,
+  UserOutlined,
+  CalendarOutlined,
+  SoundOutlined,
+  LoadingOutlined,
+} from '@ant-design/icons-vue'
 
 const userStore = useUserStore()
 const activeTab = ref('today')
@@ -10,6 +17,7 @@ onMounted(() => {
   userStore.login().then(() => {
     fetchGrabList()
     fetchMyWorks()
+    fetchSalary()
   })
 })
 
@@ -49,11 +57,21 @@ async function fetchGrabList() {
         const planRes = await fetch(`/api/workLoad/workPlans/${pid}`).then((r) => r.json())
         const planMap: Record<
           number,
-          { id: number; work_cycle: number; price: number; unit: string; number: number; start_time: string | null; end_time: string | null }
+          {
+            id: number
+            work_cycle: number
+            price: number
+            unit: string
+            number: number
+            start_time: string | null
+            end_time: string | null
+          }
         > = {}
         if (planRes.code === 200) for (const p of planRes.result) planMap[p.id] = p
         grabList.value = arrRes.result
-          .sort((a: { release_time: string | null }, b: { release_time: string | null }) => (a.release_time || '').localeCompare(b.release_time || ''))
+          .sort((a: { release_time: string | null }, b: { release_time: string | null }) =>
+            (a.release_time || '').localeCompare(b.release_time || ''),
+          )
           .filter(
             (a: { status: number; ordertaker_id: number | null; work_id: number }) =>
               a.status === 0 && !a.ordertaker_id && !myWorkIds.has(a.work_id),
@@ -68,8 +86,16 @@ async function fetchGrabList() {
               work_month: number
               work_week: number
             }) => {
-              const p = planMap[a.work_id] || ({} as typeof planMap[number])
-              return { ...a, work_cycle: p.work_cycle, price: p.price, unit: p.unit, number: p.number, start_time: p.start_time, end_time: p.end_time }
+              const p = planMap[a.work_id] || ({} as (typeof planMap)[number])
+              return {
+                ...a,
+                work_cycle: p.work_cycle,
+                price: p.price,
+                unit: p.unit,
+                number: p.number,
+                start_time: p.start_time,
+                end_time: p.end_time,
+              }
             },
           )
       }
@@ -84,30 +110,50 @@ async function fetchGrabList() {
 
 async function takeOrder(arrId: number) {
   const uid = userStore.userInfo.userid
-  if (!uid) { message.error('未获取到用户ID，请重新登录'); return }
+  if (!uid) {
+    message.error('未获取到用户ID，请重新登录')
+    return
+  }
   try {
     const payload = { userid: uid, arr_id: arrId }
     const resp = await fetch('/api/workLoad/takeOrder', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     })
     const text = await resp.text()
     const result = JSON.parse(text)
-    if (result.code === 200) { message.success('接单成功'); speakOnce('抢单成功'); await fetchGrabList(); await fetchGrabbedWorks(); await fetchMyWorks() }
-    else message.error(result.msg || '接单失败')
-  } catch (e) { message.error('网络错误'); console.error(e) }
+    if (result.code === 200) {
+      message.success('接单成功')
+      speakOnce('抢单成功')
+      await fetchGrabList()
+      await fetchGrabbedWorks()
+      await fetchMyWorks()
+    } else message.error(result.msg || '接单失败')
+  } catch (e) {
+    message.error('网络错误')
+    console.error(e)
+  }
 }
 
 async function giveUpOrder(arrId: number) {
   try {
     const resp = await fetch(`/api/workLoad/arrangement/${arrId}`, {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ordertaker_id: null, order_time: null, status: 0 }),
     })
     const result = await resp.json()
-    if (result.code === 200) { message.success('已放弃'); await fetchGrabbedWorks(); await fetchGrabList(); await fetchMyWorks() }
-    else message.error(result.msg || '操作失败')
-  } catch (e) { message.error('网络错误'); console.error(e) }
+    if (result.code === 200) {
+      message.success('已放弃')
+      await fetchGrabbedWorks()
+      await fetchGrabList()
+      await fetchMyWorks()
+    } else message.error(result.msg || '操作失败')
+  } catch (e) {
+    message.error('网络错误')
+    console.error(e)
+  }
 }
 
 const grabSubTab = ref<'available' | 'grabbed'>('available')
@@ -124,34 +170,62 @@ async function fetchGrabbedWorks() {
   if (!userStore.userInfo.userid) return
   grabbedLoading.value = true
   try {
-    const res = await fetch(`/api/workLoad/mobileScan/${userStore.userInfo.userid}`).then(r => r.json())
+    const res = await fetch(`/api/workLoad/mobileScan/${userStore.userInfo.userid}`).then((r) =>
+      r.json(),
+    )
     let pid = 0
     if (res.code === 200 && res.result.length > 0) pid = res.result[0].project_id
-    if (!pid) { grabbedList.value = []; grabbedLoading.value = false; return }
+    if (!pid) {
+      grabbedList.value = []
+      grabbedLoading.value = false
+      return
+    }
 
     const [arrRes, planRes] = await Promise.all([
-      fetch(`/api/workLoad/arrangements/${pid}`).then(r => r.json()),
-      fetch(`/api/workLoad/workPlans/${pid}`).then(r => r.json()),
+      fetch(`/api/workLoad/arrangements/${pid}`).then((r) => r.json()),
+      fetch(`/api/workLoad/workPlans/${pid}`).then((r) => r.json()),
     ])
-    const planMap: Record<number, { work_cycle: number; price: number; unit: string; number: number; start_time: string | null; end_time: string | null }> = {}
+    const planMap: Record<
+      number,
+      {
+        work_cycle: number
+        price: number
+        unit: string
+        number: number
+        start_time: string | null
+        end_time: string | null
+      }
+    > = {}
     if (planRes.code === 200) for (const p of planRes.result) planMap[p.id] = p
 
     const currentUserName = userStore.userInfo.username
     if (arrRes.code === 200) {
       grabbedList.value = arrRes.result
-        .filter((a: { ordertaker_name: string; status: number }) =>
-          a.ordertaker_name === currentUserName && a.status === 1,
+        .filter(
+          (a: { ordertaker_name: string; status: number }) =>
+            a.ordertaker_name === currentUserName && a.status === 1,
         )
         .map((a: GrabItem) => {
-          const p = planMap[a.work_id] || ({} as typeof planMap[number])
-          return { ...a, work_cycle: p.work_cycle, price: p.price, unit: p.unit, number: p.number, start_time: p.start_time, end_time: p.end_time }
+          const p = planMap[a.work_id] || ({} as (typeof planMap)[number])
+          return {
+            ...a,
+            work_cycle: p.work_cycle,
+            price: p.price,
+            unit: p.unit,
+            number: p.number,
+            start_time: p.start_time,
+            end_time: p.end_time,
+          }
         })
         .sort((a: GrabItem, b: GrabItem) => (b.order_time || '').localeCompare(a.order_time || ''))
       grabbedPage.value = 1
     }
     preloadGrabTTS(grabbedList.value)
-  } catch { /* ignore */ }
-  finally { grabbedLoading.value = false }
+  } catch {
+    /* ignore */
+  } finally {
+    grabbedLoading.value = false
+  }
 }
 
 watch(activeTab, (v) => {
@@ -159,23 +233,94 @@ watch(activeTab, (v) => {
   if (v === 'today') fetchMyWorks()
 })
 
+const SALARY_HINT_KEY = 'salary_hint'
+
+function speakSalaryDetail() {
+  const items = salaryData.value.items
+    .map((s) => `${s.work}${s.count}次，单价${s.unitPrice}元，合计${s.amount}元`)
+    .join('；')
+  speakOnce(items)
+}
+
+function speakSalaryAmount() {
+  const m = salaryMonth.value.month() + 1
+  const text = `您${m}月的工作收入为${salaryData.value.total}元`
+  speakOnce(text)
+}
+
+function speakSalaryHint() {
+  const text = '你可以点击旁边的月选择器，查看您当月的薪资和所作的工作详情'
+  const dataUrl = ttsCache.get(SALARY_HINT_KEY)
+  if (dataUrl) {
+    const audio = new Audio(dataUrl)
+    audio.volume = 1
+    audio.play().catch(() => {})
+    return
+  }
+  const audio = new Audio(`/api/workLoad/tts?text=${encodeURIComponent(text)}`)
+  audio.volume = 1
+  audio.onended = () => {
+    // Cache after first play
+    fetch(`/api/workLoad/tts?text=${encodeURIComponent(text)}`)
+      .then((r) => r.blob())
+      .then((blob) => {
+        const reader = new FileReader()
+        reader.readAsDataURL(blob)
+        reader.onloadend = () => {
+          ttsCache.set(SALARY_HINT_KEY, reader.result as string)
+          saveTTSCache()
+        }
+      })
+      .catch(() => {})
+  }
+  audio.play().catch(() => {})
+}
+
+const salaryMonth = ref(dayjs())
 const salaryData = ref({
-  month: '2026年7月',
-  total: 6823.5,
-  items: [
-    { work: '车库主道清洁', count: 30, unitPrice: 0.16, amount: 163.2 },
-    { work: '电梯厅保洁', count: 28, unitPrice: 186.67, amount: 5226.76 },
-    { work: '车位清洁', count: 15, unitPrice: 5.03, amount: 1509.0 },
-    { work: '坡道冲洗', count: 20, unitPrice: 1.0, amount: 280.0 },
-  ],
-  deduction: 355.46,
+  month: '',
+  total: 0,
+  items: [] as { work: string; count: number; unitPrice: number; amount: number }[],
+  deduction: 0,
 })
+const salaryLoading = ref(false)
+
+async function fetchSalary() {
+  if (!userStore.userInfo.userid) return
+  salaryLoading.value = true
+  try {
+    const y = salaryMonth.value.year()
+    const m = salaryMonth.value.month() + 1
+    const res = await fetch(`/api/workLoad/salary/${userStore.userInfo.userid}/${y}/${m}`).then(
+      (r) => r.json(),
+    )
+    if (res.code === 200) {
+      salaryData.value = { ...res.result, deduction: 0 }
+    }
+  } catch {
+    /* ignore */
+  } finally {
+    salaryLoading.value = false
+  }
+}
+
+watch(salaryMonth, fetchSalary)
 
 interface WorkItem {
-  work_id: number; work_name: string; price: number; unit: string; number: number
-  work_cycle: number; exec_time: number; position_name: string; project_name: string
-  start_time: string | null; end_time: string | null
-  executed: boolean; msg: string | null; source: 'assigned' | 'grabbed'
+  work_id: number
+  work_name: string
+  price: number
+  unit: string
+  number: number
+  work_cycle: number
+  exec_time: number
+  position_name: string
+  project_name: string
+  start_time: string | null
+  end_time: string | null
+  executed: boolean
+  msg: string | null
+  source: 'assigned' | 'grabbed'
 }
 const myWorks = ref<WorkItem[]>([])
 const takenWorkIds = ref<Set<number>>(new Set())
@@ -189,22 +334,33 @@ function calcWorkWeek(d: Date): number {
   const start = new Date(year, 0, 1)
   const day = start.getDay()
   let firstMon: Date
-  if (day === 1) { firstMon = start }
-  else { firstMon = new Date(start); firstMon.setDate(start.getDate() + (8 - day) % 7) }
+  if (day === 1) {
+    firstMon = start
+  } else {
+    firstMon = new Date(start)
+    firstMon.setDate(start.getDate() + ((8 - day) % 7))
+  }
   if (d < firstMon) {
     // 属于上一年的最后一周
     const prevStart = new Date(year - 1, 0, 1)
     const prevDay = prevStart.getDay()
     let prevFirstMon: Date
-    if (prevDay === 1) { prevFirstMon = prevStart }
-    else { prevFirstMon = new Date(prevStart); prevFirstMon.setDate(prevStart.getDate() + (8 - prevDay) % 7) }
+    if (prevDay === 1) {
+      prevFirstMon = prevStart
+    } else {
+      prevFirstMon = new Date(prevStart)
+      prevFirstMon.setDate(prevStart.getDate() + ((8 - prevDay) % 7))
+    }
     return Math.ceil((d.getTime() - prevFirstMon.getTime()) / (7 * 86400000)) + 1
   }
   return Math.ceil((d.getTime() - firstMon.getTime()) / (7 * 86400000)) + 1
 }
 
 // 判断抢到的工作是否属于本期（今日/本周/本月）
-function isCurrentPeriod(arr: { work_day: number; work_month: number; work_week: number }, plan: { work_cycle: number }): boolean {
+function isCurrentPeriod(
+  arr: { work_day: number; work_month: number; work_week: number },
+  plan: { work_cycle: number },
+): boolean {
   const now = new Date()
   if (plan.work_cycle === 0) return arr.work_day === now.getDate()
   if (plan.work_cycle === 1) return arr.work_week === calcWorkWeek(now)
@@ -213,22 +369,37 @@ function isCurrentPeriod(arr: { work_day: number; work_month: number; work_week:
 }
 
 // 判断执行状态（逻辑与后端 MobileScanView.get 一致）
-function checkExecution(workPlanId: number, workCycle: number, execTime: number, executions: Array<{ work_plan_id: number; upload_time: string | null; uploader_name: string }>): { executed: boolean; msg: string | null } {
+function checkExecution(
+  workPlanId: number,
+  workCycle: number,
+  execTime: number,
+  executions: Array<{ work_plan_id: number; upload_time: string | null; uploader_name: string }>,
+): { executed: boolean; msg: string | null } {
   const today = new Date()
   if (workCycle === 0) {
     const todayStr = today.toISOString().slice(0, 10)
-    const exe = executions.find(e => e.work_plan_id === workPlanId && e.upload_time?.startsWith(todayStr))
+    const exe = executions.find(
+      (e) => e.work_plan_id === workPlanId && e.upload_time?.startsWith(todayStr),
+    )
     if (exe) {
       const t = exe.upload_time?.slice(0, 16).replace('T', ' ') || ''
       return { executed: true, msg: `该工作已经于 ${t} 被${exe.uploader_name}执行` }
     }
   } else if (workCycle === 1) {
     const wkday = today.getDay() || 7
-    const monday = new Date(today); monday.setDate(today.getDate() - wkday + 1)
-    const sunday = new Date(monday); sunday.setDate(monday.getDate() + 6)
+    const monday = new Date(today)
+    monday.setDate(today.getDate() - wkday + 1)
+    const sunday = new Date(monday)
+    sunday.setDate(monday.getDate() + 6)
     const startStr = monday.toISOString().slice(0, 10)
     const endStr = sunday.toISOString().slice(0, 10)
-    const exe = executions.find(e => e.work_plan_id === workPlanId && e.upload_time && e.upload_time.slice(0, 10) >= startStr && e.upload_time.slice(0, 10) <= endStr)
+    const exe = executions.find(
+      (e) =>
+        e.work_plan_id === workPlanId &&
+        e.upload_time &&
+        e.upload_time.slice(0, 10) >= startStr &&
+        e.upload_time.slice(0, 10) <= endStr,
+    )
     if (exe) {
       const t = exe.upload_time?.slice(0, 16).replace('T', ' ') || ''
       return { executed: true, msg: `该工作已经于 ${t} 被${exe.uploader_name}执行` }
@@ -241,7 +412,13 @@ function checkExecution(workPlanId: number, workCycle: number, execTime: number,
     const execDate = new Date(today.getFullYear(), today.getMonth(), execDay)
     const startStr = execDate.toISOString().slice(0, 10)
     const endStr = today.toISOString().slice(0, 10)
-    const exe = executions.find(e => e.work_plan_id === workPlanId && e.upload_time && e.upload_time.slice(0, 10) >= startStr && e.upload_time.slice(0, 10) <= endStr)
+    const exe = executions.find(
+      (e) =>
+        e.work_plan_id === workPlanId &&
+        e.upload_time &&
+        e.upload_time.slice(0, 10) >= startStr &&
+        e.upload_time.slice(0, 10) <= endStr,
+    )
     if (exe) {
       const t = exe.upload_time?.slice(0, 16).replace('T', ' ') || ''
       return { executed: true, msg: `该工作已经于 ${t} 被${exe.uploader_name}执行` }
@@ -255,26 +432,53 @@ async function fetchMyWorks() {
   loading.value = true
   try {
     const uid = userStore.userInfo.userid
-    const scanRes = await fetch(`/api/workLoad/mobileScan/${uid}`).then(r => r.json())
+    const scanRes = await fetch(`/api/workLoad/mobileScan/${uid}`).then((r) => r.json())
 
     // 获取项目ID
     let pid = 0
     if (scanRes.code === 200 && scanRes.result.length > 0) {
       pid = scanRes.result[0].project_id
     }
-    if (!pid) { myWorks.value = []; loading.value = false; return }
+    if (!pid) {
+      myWorks.value = []
+      loading.value = false
+      return
+    }
 
     // 并行获取计划、安排、执行数据
     const [planRes, arrRes, execRes] = await Promise.all([
-      pid ? fetch(`/api/workLoad/workPlans/${pid}`).then(r => r.json()) : Promise.resolve({ code: 0, result: [] }),
-      pid ? fetch(`/api/workLoad/arrangements/${pid}`).then(r => r.json()) : Promise.resolve({ code: 0, result: [] }),
-      pid ? fetch(`/api/workLoad/executions/${pid}`).then(r => r.json()) : Promise.resolve({ code: 0, result: [] }),
+      pid
+        ? fetch(`/api/workLoad/workPlans/${pid}`).then((r) => r.json())
+        : Promise.resolve({ code: 0, result: [] }),
+      pid
+        ? fetch(`/api/workLoad/arrangements/${pid}`).then((r) => r.json())
+        : Promise.resolve({ code: 0, result: [] }),
+      pid
+        ? fetch(`/api/workLoad/executions/${pid}`).then((r) => r.json())
+        : Promise.resolve({ code: 0, result: [] }),
     ])
 
-    const planMap: Record<number, { id: number; work_cycle: number; exec_time: number; price: number; unit: string; number: number; work_name: string; start_time: string | null; end_time: string | null }> = {}
+    const planMap: Record<
+      number,
+      {
+        id: number
+        work_cycle: number
+        exec_time: number
+        price: number
+        unit: string
+        number: number
+        work_name: string
+        start_time: string | null
+        end_time: string | null
+      }
+    > = {}
     if (planRes.code === 200) for (const p of planRes.result) planMap[p.id] = p
 
-    const executions: Array<{ work_plan_id: number; upload_time: string | null; uploader_name: string }> = execRes.code === 200 ? execRes.result : []
+    const executions: Array<{
+      work_plan_id: number
+      upload_time: string | null
+      uploader_name: string
+    }> = execRes.code === 200 ? execRes.result : []
 
     // 区分用户抢到的、其他人抢走的、已放入市场的
     const takenIds = new Set<number>()
@@ -349,23 +553,30 @@ async function fetchMyWorks() {
     // 合并并排序：待执行 > 已完成 > 已安排(别人抢走) > 已安排至市场
     myWorks.value = [...scanWorks, ...grabbedWorks].sort((a, b) => {
       const rank = (w: WorkItem) => {
-        if (!w.executed && !takenWorkIds.value.has(w.work_id) && !marketWorkIds.value.has(w.work_id)) return 0
+        if (
+          !w.executed &&
+          !takenWorkIds.value.has(w.work_id) &&
+          !marketWorkIds.value.has(w.work_id)
+        )
+          return 0
         if (w.executed) return 1
         if (takenWorkIds.value.has(w.work_id)) return 2
-        return 3  // 已安排至市场
+        return 3 // 已安排至市场
       }
       return rank(a) - rank(b)
     })
     preloadTTS(myWorks.value)
-  } catch { /* ignore */ }
-  finally { loading.value = false }
+  } catch {
+    /* ignore */
+  } finally {
+    loading.value = false
+  }
 }
-
 
 const WEEKDAY_NAMES = ['', '周一', '周二', '周三', '周四', '周五', '周六', '周日']
 const speakingWorkId = ref<number | null>(null)
-const ttsCache = new Map<number, string>() // work_id -> dataUrl
-const TTS_CACHE_KEY = 'tts_cache_v2'
+const ttsCache = new Map<string, string>() // key -> dataUrl
+const TTS_CACHE_KEY = 'tts_cache_v3'
 
 // 从 localStorage 恢复缓存
 function loadTTSCache() {
@@ -373,9 +584,11 @@ function loadTTSCache() {
     const raw = localStorage.getItem(TTS_CACHE_KEY)
     if (raw) {
       const obj = JSON.parse(raw) as Record<string, string>
-      for (const [k, v] of Object.entries(obj)) ttsCache.set(Number(k), v)
+      for (const [k, v] of Object.entries(obj)) ttsCache.set(k, v)
     }
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 }
 loadTTSCache()
 
@@ -393,22 +606,30 @@ function buildSpeakText(w: WorkItem): string {
 function saveTTSCache() {
   const obj: Record<string, string> = {}
   for (const [k, v] of ttsCache.entries()) obj[k] = v
-  try { localStorage.setItem(TTS_CACHE_KEY, JSON.stringify(obj)) } catch { /* quota */ }
+  try {
+    localStorage.setItem(TTS_CACHE_KEY, JSON.stringify(obj))
+  } catch {
+    /* quota */
+  }
 }
 
 async function preloadTTS(works: WorkItem[]) {
   for (const w of works) {
-    if (ttsCache.has(w.work_id)) continue
+    if (ttsCache.has(w.work_id + '_' + (w.executed ? 1 : 0))) continue
     const text = buildSpeakText(w)
     try {
       const resp = await fetch(`/api/workLoad/tts?text=${encodeURIComponent(text)}`)
       const blob = await resp.blob()
       const reader = new FileReader()
       reader.readAsDataURL(blob)
-      await new Promise<void>((resolve) => { reader.onloadend = () => resolve() })
-      ttsCache.set(w.work_id, reader.result as string)
+      await new Promise<void>((resolve) => {
+        reader.onloadend = () => resolve()
+      })
+      ttsCache.set(w.work_id + '_' + (w.executed ? 1 : 0), reader.result as string)
       saveTTSCache()
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }
 }
 
@@ -438,26 +659,32 @@ async function playWithGain(dataUrl: string): Promise<void> {
   gain.connect(compressor)
   compressor.connect(audioCtx.destination)
   source.start()
-  return new Promise((resolve) => { source.onended = () => resolve() })
+  return new Promise((resolve) => {
+    source.onended = () => resolve()
+  })
 }
 
 async function speakWork(w: WorkItem) {
   speakingWorkId.value = w.work_id
-  const dataUrl = ttsCache.get(w.work_id)
+  const dataUrl = ttsCache.get(w.work_id + '_' + (w.executed ? 1 : 0))
   if (!dataUrl) return
   try {
     await playWithGain(dataUrl)
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
   speakingWorkId.value = null
 }
 
 async function speakGrab(item: GrabItem) {
   grabSpeakingId.value = item.id
-  const dataUrl = ttsCache.get(-item.id)
+  const dataUrl = ttsCache.get(String(-item.id))
   if (!dataUrl) return
   try {
     await playWithGain(dataUrl)
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
   grabSpeakingId.value = null
 }
 
@@ -493,29 +720,38 @@ const grabSpeakingId = ref<number | null>(null)
 
 async function preloadGrabTTS(items: GrabItem[]) {
   for (const item of items) {
-    if (ttsCache.has(-item.id)) continue  // negative key for grab items
+    if (ttsCache.has(String(-item.id))) continue // negative key for grab items
     const text = buildGrabText(item)
     try {
       const resp = await fetch(`/api/workLoad/tts?text=${encodeURIComponent(text)}`)
       const blob = await resp.blob()
       const reader = new FileReader()
       reader.readAsDataURL(blob)
-      await new Promise<void>((resolve) => { reader.onloadend = () => resolve() })
-      ttsCache.set(-item.id, reader.result as string)
+      await new Promise<void>((resolve) => {
+        reader.onloadend = () => resolve()
+      })
+      ttsCache.set(String(-item.id), reader.result as string)
       saveTTSCache()
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }
 }
-
 
 function getWeekRange(weekNum: number): string {
   const now = new Date()
   const year = now.getFullYear()
   const start = new Date(year, 0, 1)
-  const firstMon = new Date(start); firstMon.setDate(start.getDate() + (8 - start.getDay()) % 7 || (start.getDay() === 1 ? 0 : 7 - start.getDay() + 1))
+  const firstMon = new Date(start)
+  firstMon.setDate(
+    start.getDate() + ((8 - start.getDay()) % 7) ||
+      (start.getDay() === 1 ? 0 : 7 - start.getDay() + 1),
+  )
   // Simplified calculation
-  const monday = new Date(firstMon); monday.setDate(firstMon.getDate() + (weekNum - 1) * 7)
-  const sunday = new Date(monday); sunday.setDate(monday.getDate() + 6)
+  const monday = new Date(firstMon)
+  monday.setDate(firstMon.getDate() + (weekNum - 1) * 7)
+  const sunday = new Date(monday)
+  sunday.setDate(monday.getDate() + 6)
   return `${String(monday.getMonth() + 1).padStart(2, '0')}/${String(monday.getDate()).padStart(2, '0')}-${String(sunday.getMonth() + 1).padStart(2, '0')}/${String(sunday.getDate()).padStart(2, '0')}`
 }
 </script>
@@ -527,20 +763,35 @@ function getWeekRange(weekNum: number): string {
       <div class="flex border-b bg-white shrink-0">
         <div
           class="flex-1 py-2 text-center cursor-pointer font-bold"
-          :class="grabSubTab === 'available' ? 'text-blue-500 border-b-2 border-blue-500' : 'text-gray-500'"
+          :class="
+            grabSubTab === 'available'
+              ? 'text-blue-500 border-b-2 border-blue-500'
+              : 'text-gray-500'
+          "
           @click="grabSubTab = 'available'"
-        >可抢工作</div>
+        >
+          可抢工作
+        </div>
         <div
           class="flex-1 py-2 text-center cursor-pointer font-bold"
-          :class="grabSubTab === 'grabbed' ? 'text-blue-500 border-b-2 border-blue-500' : 'text-gray-500'"
-          @click="grabSubTab = 'grabbed'; fetchGrabbedWorks()"
-        >抢到的工作</div>
+          :class="
+            grabSubTab === 'grabbed' ? 'text-blue-500 border-b-2 border-blue-500' : 'text-gray-500'
+          "
+          @click="
+            grabSubTab = 'grabbed'
+            fetchGrabbedWorks()
+          "
+        >
+          抢到的工作
+        </div>
       </div>
       <div class="flex-1 overflow-y-auto p-4">
         <!-- 可抢工作 -->
         <template v-if="grabSubTab === 'available'">
           <a-spin :spinning="grabLoading">
-            <div v-if="grabList.length === 0" class="text-center py-8 text-gray-400">暂无可抢工作</div>
+            <div v-if="grabList.length === 0" class="text-center py-8 text-gray-400">
+              暂无可抢工作
+            </div>
             <a-card v-for="item in grabList" :key="item.id" class="mb-3 relative">
               <div class="flex justify-between items-start">
                 <div class="flex-1">
@@ -555,23 +806,38 @@ function getWeekRange(weekNum: number): string {
                     >
                   </div>
                   <div class="mt-2 flex gap-2 text-sm flex-wrap">
-                    <span>¥{{ item.price || '—' }}/{{ item.unit || '—' }}×{{ item.number || '—' }}</span>
+                    <span
+                      >¥{{ item.price || '—' }}/{{ item.unit || '—' }}×{{
+                        item.number || '—'
+                      }}</span
+                    >
                   </div>
                   <div class="text-xs text-gray-400 mt-1">
-                    {{ item.start_time?.slice(0, 5) || '—' }} ~ {{ item.end_time?.slice(0, 5) || '—' }}
+                    {{ item.start_time?.slice(0, 5) || '—' }} ~
+                    {{ item.end_time?.slice(0, 5) || '—' }}
                   </div>
                 </div>
                 <a-button type="primary" size="small" @click="takeOrder(item.id)">接单</a-button>
               </div>
-              <LoadingOutlined v-if="grabSpeakingId === item.id" class="absolute right-2 bottom-2 text-blue-400 text-2xl" spin />
-              <SoundOutlined v-else class="absolute right-2 bottom-2 text-blue-400 text-2xl cursor-pointer" @click.stop="speakGrab(item)" />
+              <LoadingOutlined
+                v-if="grabSpeakingId === item.id"
+                class="absolute right-2 bottom-2 text-blue-400 text-2xl"
+                spin
+              />
+              <SoundOutlined
+                v-else
+                class="absolute right-2 bottom-2 text-blue-400 text-2xl cursor-pointer"
+                @click.stop="speakGrab(item)"
+              />
             </a-card>
           </a-spin>
         </template>
         <!-- 抢到的工作 -->
         <template v-else>
           <a-spin :spinning="grabbedLoading">
-            <div v-if="grabbedList.length === 0" class="text-center py-8 text-gray-400">暂无抢到的工作</div>
+            <div v-if="grabbedList.length === 0" class="text-center py-8 text-gray-400">
+              暂无抢到的工作
+            </div>
             <template v-else>
               <a-card v-for="item in grabbedPaged" :key="item.id" class="mb-3 relative">
                 <div class="flex justify-between items-start">
@@ -587,20 +853,39 @@ function getWeekRange(weekNum: number): string {
                       >
                     </div>
                     <div class="mt-2 flex gap-2 text-sm flex-wrap">
-                      <span>¥{{ item.price || '—' }}/{{ item.unit || '—' }}×{{ item.number || '—' }}</span>
+                      <span
+                        >¥{{ item.price || '—' }}/{{ item.unit || '—' }}×{{
+                          item.number || '—'
+                        }}</span
+                      >
                     </div>
                     <div class="text-xs text-gray-400 mt-1">
-                      {{ item.start_time?.slice(0, 5) || '—' }} ~ {{ item.end_time?.slice(0, 5) || '—' }}
+                      {{ item.start_time?.slice(0, 5) || '—' }} ~
+                      {{ item.end_time?.slice(0, 5) || '—' }}
                     </div>
                     <div class="text-xs text-gray-400 mt-1">
                       接单时间: {{ item.order_time?.slice(0, 16).replace('T', ' ') || '—' }}
                     </div>
                   </div>
-                  <a-button v-if="isCurrentPeriod(item, { work_cycle: item.work_cycle })" size="small" danger @click="giveUpOrder(item.id)">放弃</a-button>
+                  <a-button
+                    v-if="isCurrentPeriod(item, { work_cycle: item.work_cycle })"
+                    size="small"
+                    danger
+                    @click="giveUpOrder(item.id)"
+                    >放弃</a-button
+                  >
                   <a-tag v-else color="default">历史工作</a-tag>
                 </div>
-                <LoadingOutlined v-if="grabSpeakingId === item.id" class="absolute right-2 bottom-2 text-blue-400 text-2xl" spin />
-                <SoundOutlined v-else class="absolute right-2 bottom-2 text-blue-400 text-2xl cursor-pointer" @click.stop="speakGrab(item)" />
+                <LoadingOutlined
+                  v-if="grabSpeakingId === item.id"
+                  class="absolute right-2 bottom-2 text-blue-400 text-2xl"
+                  spin
+                />
+                <SoundOutlined
+                  v-else
+                  class="absolute right-2 bottom-2 text-blue-400 text-2xl cursor-pointer"
+                  @click.stop="speakGrab(item)"
+                />
               </a-card>
               <a-pagination
                 v-if="grabbedTotal > 10"
@@ -625,16 +910,26 @@ function getWeekRange(weekNum: number): string {
           v-for="w in myWorks"
           :key="w.source + '-' + w.work_id"
           class="mb-3 relative"
-          :class="{ 'border-green-400': w.executed, 'border-blue-400': w.source === 'grabbed' && !w.executed, 'opacity-50': takenWorkIds.has(w.work_id) || marketWorkIds.has(w.work_id) }"
+          :class="{
+            'border-green-400': w.executed,
+            'border-blue-400': w.source === 'grabbed' && !w.executed,
+            'opacity-50': takenWorkIds.has(w.work_id) || marketWorkIds.has(w.work_id),
+          }"
         >
           <div class="flex justify-between items-start">
             <div class="flex-1">
               <div class="font-bold text-base">{{ w.work_name }}</div>
               <div class="text-xs text-gray-400 mt-1">
-                {{ w.position_name }}<template v-if="w.project_name"> · {{ w.project_name }}</template>
+                {{ w.position_name
+                }}<template v-if="w.project_name"> · {{ w.project_name }}</template>
               </div>
               <div class="mt-2 flex gap-2 text-sm flex-wrap">
-                <a-tag :color="w.source === 'grabbed' ? 'blue' : undefined">{{ WORK_CYCLE_LABEL[w.work_cycle] || '—' }}<template v-if="w.work_cycle === 2 && w.exec_time"> · {{ w.exec_time }}日</template></a-tag>
+                <a-tag :color="w.source === 'grabbed' ? 'blue' : undefined"
+                  >{{ WORK_CYCLE_LABEL[w.work_cycle] || '—'
+                  }}<template v-if="w.work_cycle === 2 && w.exec_time">
+                    · {{ w.exec_time }}日</template
+                  ></a-tag
+                >
                 <span>¥{{ w.price }} / {{ w.unit }}×{{ w.number }}</span>
               </div>
               <div class="text-xs text-gray-400 mt-1">
@@ -649,8 +944,16 @@ function getWeekRange(weekNum: number): string {
               <a-tag v-else color="processing">待执行</a-tag>
             </div>
           </div>
-          <LoadingOutlined v-if="speakingWorkId === w.work_id" class="absolute right-2 bottom-2 text-blue-400 text-2xl" spin />
-          <SoundOutlined v-else class="absolute right-2 bottom-2 text-blue-400 text-2xl cursor-pointer" @click.stop="speakWork(w)" />
+          <LoadingOutlined
+            v-if="speakingWorkId === w.work_id"
+            class="absolute right-2 bottom-2 text-blue-400 text-2xl"
+            spin
+          />
+          <SoundOutlined
+            v-else
+            class="absolute right-2 bottom-2 text-blue-400 text-2xl cursor-pointer"
+            @click.stop="speakWork(w)"
+          />
         </a-card>
       </a-spin>
     </div>
@@ -668,13 +971,40 @@ function getWeekRange(weekNum: number): string {
           </div>
         </div>
       </a-card>
-      <a-card title="我的薪资" class="mb-4">
+      <a-card class="mb-4">
+        <template #title
+          >我的薪资
+          <SoundOutlined
+            class="text-blue-400 cursor-pointer align-middle"
+            @click.stop="speakSalaryHint"
+        /></template>
+        <template #extra>
+          <a-date-picker
+            v-model:value="salaryMonth"
+            picker="month"
+            format="YYYY年M月"
+            size="small"
+            class="w-28"
+          />
+        </template>
         <div class="text-center mb-3">
-          <div class="text-3xl font-bold text-green-600">¥{{ salaryData.total }}</div>
+          <div class="text-3xl font-bold text-green-600">
+            ¥{{ salaryData.total }}
+            <SoundOutlined
+              class="text-blue-400 cursor-pointer align-middle text-xl"
+              @click.stop="speakSalaryAmount"
+            />
+          </div>
           <div class="text-xs text-gray-400">{{ salaryData.month }}</div>
         </div>
         <a-divider />
-        <div class="text-sm font-bold mb-2">工作明细</div>
+        <div class="text-sm font-bold mb-2">
+          工作明细
+          <SoundOutlined
+            class="text-blue-400 cursor-pointer align-middle"
+            @click.stop="speakSalaryDetail"
+          />
+        </div>
         <div v-for="s in salaryData.items" :key="s.work" class="flex justify-between text-sm py-1">
           <span>{{ s.work }} ×{{ s.count }}</span>
           <span>¥{{ s.amount }}</span>
